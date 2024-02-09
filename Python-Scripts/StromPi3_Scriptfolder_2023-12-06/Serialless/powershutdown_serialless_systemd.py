@@ -77,12 +77,13 @@ $ systemctl status powershutdown.service
 import logging
 import logging.config
 import logging.handlers
-import RPi.GPIO as GPIO
-from threading import Timer
-import signal
 import os
-import serial
+import signal
+from threading import Timer
 from time import sleep
+
+import RPi.GPIO as GPIO
+import serial
 
 # Here you can choose the connected GPIO-Pin (in BCM mode)
 # Pin 21 is the default pin when using the jumper on StromPi3 Rev1.1
@@ -140,7 +141,7 @@ class ShutdownSerialless:
     def __del__(self):
         """Clean up behind us."""
         self.stop()
- 
+
     def start(self):
         """Start watching the StromPi 3."""
         # Start Serialless Mode
@@ -151,22 +152,23 @@ class ShutdownSerialless:
         breakL = 0.2
         serial_port = serial.Serial()
         serial_port.baudrate = 38400
-        serial_port.port = '/dev/serial0'
+        serial_port.port = "/dev/serial0"
         serial_port.timeout = 1
         serial_port.bytesize = 8
         serial_port.stopbits = 1
         serial_port.parity = serial.PARITY_NONE
 
-        if serial_port.isOpen(): serial_port.close()
+        if serial_port.isOpen():
+            serial_port.close()
         serial_port.open()
 
-        serial_port.write(str.encode('quit'))
+        serial_port.write(str.encode("quit"))
         sleep(breakS)
-        serial_port.write(str.encode('\x0D'))
+        serial_port.write(str.encode("\x0D"))
         sleep(breakL)
-        serial_port.write(str.encode('set-config 0 2'))
+        serial_port.write(str.encode("set-config 0 2"))
         sleep(breakS)
-        serial_port.write(str.encode('\x0D'))
+        serial_port.write(str.encode("\x0D"))
         sleep(breakL)
         logger.info("Enabled Serialless")
         # Initialization
@@ -174,9 +176,9 @@ class ShutdownSerialless:
         GPIO.setup(self.pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
         # Add interrupt handling routine
         GPIO.add_event_detect(
-            self.pin, GPIO.BOTH,
-            callback=self.power_change, bouncetime=self.bounce)
-        logger.info('Safe shutdown in the case of power failure enabled')
+            self.pin, GPIO.BOTH, callback=self.power_change, bouncetime=self.bounce
+        )
+        logger.info("Safe shutdown in the case of power failure enabled")
 
     def stop(self):
         """Stop watching the StromPi 3."""
@@ -191,33 +193,32 @@ class ShutdownSerialless:
         if sig == signal.SIGINT:
             # We got a keyboard interrupt, print a new line
             logger.info()
-        logger.info('Safe shutdown in the case of power failure disabled')
+        logger.info("Safe shutdown in the case of power failure disabled")
 
     def power_change(self, pin):
         """Callback function when the power supply changed."""
         if GPIO.input(self.pin):
             # If pin is high, we are back on the power supply
-            logger.info('Power back detected')
+            logger.info("Power back detected")
             for t in self.timers:
                 t.cancel()
         else:
             # If pin is low, we lost the power supply
-            logger.info('Power failure detected')
+            logger.info("Power failure detected")
             t = Timer(self.timeout, self.shutdown)
             t.start()
             self.timers.append(t)
 
     def shutdown(self):
         """Safely shut down the system."""
-        logger.info('Shutdown system')
-        os.system('sudo shutdown -h now')
+        logger.info("Shutdown system")
+        os.system("sudo shutdown -h now")
 
 
-if __name__ == '__main__':
-
+if __name__ == "__main__":
     s = ShutdownSerialless(GPIO_PIN, SHUTDOWN_TIMER)
-    signal.signal(signal.SIGTERM, s.signal)     # 'kill'
-    signal.signal(signal.SIGINT, s.signal)      # CTRL-C
+    signal.signal(signal.SIGTERM, s.signal)  # 'kill'
+    signal.signal(signal.SIGINT, s.signal)  # CTRL-C
     s.start()
-    print('(CTRL-C for exit)')
+    print("(CTRL-C for exit)")
     signal.pause()
