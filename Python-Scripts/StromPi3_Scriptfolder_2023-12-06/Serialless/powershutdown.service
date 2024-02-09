@@ -1,0 +1,10 @@
+[Unit]
+ Description=Automatic shutdown at power outage
+ After=multi-user.target
+
+ [Service]
+ Type=idle
+ ExecStart=/usr/local/bin/powershutdown.py
+
+ [Install]
+ WantedBy=multi-user.target
