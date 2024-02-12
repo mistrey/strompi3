@@ -5,6 +5,7 @@ import logging.handlers
 import os
 import signal
 from threading import Thread, Timer
+from time import sleep
 
 import serial
 
@@ -97,6 +98,7 @@ class ShutdownSerial:
                 elif message.find("xxxShutdownRaspberryPixxx\n") != -1:
                     logger.info("PowerFail - Raspberry Pi Shutdown")
                     self.power_change(power_on=False)
+            sleep(0.1)
 
     def stop(self):
         """Stop watching the StromPi 3."""
