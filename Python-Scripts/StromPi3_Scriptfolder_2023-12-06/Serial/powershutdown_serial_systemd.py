@@ -10,17 +10,10 @@ from time import sleep
 import serial
 
 ##############################################################################
-# Hier muss der wait_for_shutdowntimer eingestellt werden - dieser wartet mit
-# dem Herunterfahren des Raspberry Pi, fuer den Fall dass die primaere
-# Stromquelle wiederhergesttelt werden sollte Dieser Timer muss kleiner sein,
-# als der im StromPi3 eingestellte shutdown-timer, damit sicher
-# heruntergefahren wird.
-
-# Here you have to set the wait_for_shutdowntimer in seconds - it waits with the
+# Here you have to set the SHUTDOWN_TIMER in seconds - it waits with the
 # shutdown of the Raspberry pi, in the case the primary voltage source turns
 # back on. This timer have to be set lower than the configured shutdown-timer
 # in the StromPi3 to make a safe shutdown.
-
 ##############################################################################
 SHUTDOWN_TIMER = 10
 ##############################################################################
@@ -82,22 +75,31 @@ class ShutdownSerial:
         self.ser.stopbits = serial.STOPBITS_ONE
         self.ser.bytesize = serial.EIGHTBITS
         self.ser.timeout = 1
-        self.ser.open()
+        while not self.ser.is_open:
+            try:
+                self.ser.open()
+            except Exception as exc:
+                logger.warning(exc)
+            sleep(0.1)
         self.listener_thread.start()
+        logger.info("Listening on %s", self.ser.port)
 
     def listen(self):
         """Listening for incomming messages"""
         while self.ser.is_open:
             if self.ser.inWaiting():
-                message = self.ser.readline().decode(encoding="UTF-8", errors="strict")
-                if message:
-                    logger.info(message)
-                if message.find("xxx--StromPiPowerBack--xxx\n") != -1:
-                    logger.info("PowerBack - Raspberry Pi Shutdown aborted")
-                    self.power_change(power_on=True)
-                elif message.find("xxxShutdownRaspberryPixxx\n") != -1:
-                    logger.info("PowerFail - Raspberry Pi Shutdown")
-                    self.power_change(power_on=False)
+                try:
+                    raw_msg = self.ser.readline()
+                    message = raw_msg.decode(encoding="UTF-8", errors="strict")
+                    if message and (not message.isspace()):
+                        logger.info(message)
+                    if message.find("xxx--StromPiPowerBack--xxx\n") != -1:
+                        self.power_change(power_on=True)
+                    elif message.find("xxxShutdownRaspberryPixxx\n") != -1:
+                        self.power_change(power_on=False)
+                except UnicodeDecodeError as exc:
+                    logger.warning(exc)
+                    logger.info(raw_msg)
             sleep(0.1)
 
     def stop(self):
@@ -108,8 +110,7 @@ class ShutdownSerial:
         """Handle the signal 'sig'."""
         self.stop()
         if sig == signal.SIGINT:
-            # We got a keyboard interrupt, print a new line
-            logger.info()
+            logger.info("Keyboard interrupt by CTRL-C")
         logger.info("Safe shutdown in the case of power failure disabled")
 
     def power_change(self, power_on):
